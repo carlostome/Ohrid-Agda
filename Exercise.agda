@@ -1,3 +1,4 @@
+{-# OPTIONS --show-implicit #-}
 module Exercise where
 
 open import Ohrid-Prelude
@@ -25,7 +26,8 @@ postulate I'llDoThisLater : forall {l}{X : Set l} -> X
 -- When we concatenate vectors, we add their lengths.
 
 _+V_ : {X : Set}{m n : Nat} -> Vec X m -> Vec X n -> Vec X (m +N n)
-xs +V ys  = {!!}
+[]        +V ys = ys
+(x :: xs) +V ys = x :: xs +V ys
 infixr 3 _+V_
 
 -- NOTICE that even though m and n are numbers, not types, they can
@@ -50,7 +52,8 @@ testConcV = refl
 ----------------------------------------------------------------------------
 
 vec : forall {n X} -> X -> Vec X n
-vec x = {!!}
+vec {zero}  x = []
+vec {suc n} x = x :: vec x
 
 -- HINT: you may need to override default invisibility
 
@@ -67,7 +70,8 @@ vec x = {!!}
 
 vapp : forall {n X Y} ->
        Vec (X -> Y) n -> Vec X n -> Vec Y n
-vapp fs xs = {!!}
+vapp []        xs        = []
+vapp (f :: fs) (x :: xs) = f x :: vapp fs xs
 
 
 ----------------------------------------------------------------------------
@@ -78,10 +82,10 @@ vapp fs xs = {!!}
 -- no pattern matching or recursion permitted
 
 vmap : forall {n X Y} -> (X -> Y) -> Vec X n -> Vec Y n
-vmap f xs = {!!}
+vmap f xs = vapp (vec f) xs
 
 vzip : forall {n X Y} -> Vec X n -> Vec Y n -> Vec (X * Y) n
-vzip xs ys = {!!}
+vzip xs ys = vapp (vmap (_,_) xs) ys
 
 
 ----------------------------------------------------------------------------
@@ -100,8 +104,24 @@ data Choppable {X : Set}(m n : Nat) : Vec X (m +N n) -> Set where
 -- ??? 0.4 chop                                               (score: ? / 2)
 ----------------------------------------------------------------------------
 
+nordy : {X : Set}{m n : Nat}(xs : Vec X m)(ys : Vec X n) -> Vec X (m +N n)
+nordy = _+V_
+
 chop : {X : Set}(m n : Nat)(xs : Vec X (m +N n)) -> Choppable m n xs
-chop m n xs = {!!}
+chop zero    n xs = chopTo [] xs
+chop (suc m) n (x :: xs) with chop m n xs
+chop (suc m) n (x :: .(nordy xs ys)) | chopTo xs ys = chopTo (x :: xs) ys
+
+take : {X : Set} (m : Nat) {n : Nat} (xs : Vec X (m +N n)) -> Vec X m
+take zero    xs        = []
+take (suc m) (x :: xs) = x :: take m xs
+
+drop : {X : Set} (m : Nat) {n : Nat} (xs : Vec X (m +N n)) -> Vec X n
+drop zero    xs        = xs
+drop (suc m) (x :: xs) = drop m xs
+
+-- chop : {X : Set}(m n : Nat)(xs : Vec X (m +N n)) -> Choppable m n xs
+-- chop m n xs = chopTo (take m {n} xs) (drop m {n} xs)
 
 -- DON'T PANIC if you can't pattern match on the vector right away, because
 -- the fact is that without looking at WHERE TO CHOP, you don't know if you
@@ -120,11 +140,11 @@ chop m n xs = {!!}
 
 -- unit test
 
-{-+}
+
 testChop  :   chop 3 2 (0 :: 1 :: 2 :: 3 :: 4 :: [])
           ==  chopTo (0 :: 1 :: 2 :: []) (3 :: 4 :: [])
 testChop = refl
-{+-}
+
 
 -- SUSPICION: unit tests may, in this case, be a little beside the point
 
@@ -139,10 +159,12 @@ testChop = refl
 -- you'll need to complete the view type yourself
 
 data Unzippable {X Y n} : Vec (X * Y) n -> Set where
-  unzipped : {- some stuff -> -} Unzippable {!!}
+  unzipped : (xs : Vec X n) (ys : Vec Y n) -> Unzippable (vzip xs ys)
   
 unzip : forall {X Y n}(xys : Vec (X * Y) n) -> Unzippable xys
-unzip xys = {!!}
+unzip [] = unzipped [] []
+unzip (x , y :: xys) with unzip xys
+... | unzipped xs ys =  unzipped (x :: xs) (y :: ys)
 
 
 ----------------------------------------------------------------------------
@@ -151,16 +173,25 @@ unzip xys = {!!}
 
 -- prove the Applicative laws for vectors
 
-VecApp : forall n -> Applicative \X -> Vec X n
-VecApp n = record
-  { pure         = vec
-  ; _<*>_        = vapp
-  ; identity     = {!!}
-  ; composition  = {!!}
-  ; homomorphism = {!!}
-  ; interchange  = {!!}
-  } where
-  -- lemmas go here
+module _ where
+  open Applicative
+  
+  VecApp : forall n -> Applicative (λ X -> Vec X n)
+  VecApp n        .pure  = vec
+
+  VecApp n        ._<*>_ = vapp
+
+  VecApp .0       .identity []                                    = refl
+  VecApp .(suc _) .identity (x :: v) rewrite VecApp _ .identity v = refl
+
+  VecApp .0       .composition []        []        []                                               = refl
+  VecApp .(suc _) .composition (u :: us) (v :: vs) (w :: ws) rewrite VecApp _ .composition us vs ws = refl
+
+  VecApp zero     .homomorphism f x                                    = refl
+  VecApp (suc n)  .homomorphism f x rewrite VecApp n .homomorphism f x = refl
+
+  VecApp .0       .interchange []        y                                    = refl
+  VecApp .(suc _) .interchange (u :: us) y rewrite VecApp _ .interchange us y = refl
 
 
 ----------------------------------------------------------------------------
@@ -173,10 +204,11 @@ VecApp n = record
 module VECTRAV {F : Set -> Set}(A : Applicative F) where
 
   open Applicative A
+  open Functor (App2Fun A)
 
   traverse : forall {n S T} -> (S -> F T) -> Vec S n -> F (Vec T n)
-  traverse f ss = {!!}
-
+  traverse f []        = pure []
+  traverse f (s :: ss) = map _::_ (f s) <*> traverse f ss
 
 ----------------------------------------------------------------------------
 -- ??? 0.8 monoids make constant applicatives                 (score: ? / 1)
@@ -184,17 +216,19 @@ module VECTRAV {F : Set -> Set}(A : Applicative F) where
 
 -- Show that every monoid gives rise to a degenerate applicative functor
 
-MonCon : forall {X} -> Monoid X -> Applicative \_ -> X
-MonCon M = record
-             { pure          = {!!}
-             ; _<*>_         = op
-             ; identity      = {!!}
-             ; composition   = {!!}
-             ; homomorphism  = {!!}
-             ; interchange   = {!!}
-             } where open Monoid M
+module MonCon where
+  open Applicative
+  open Monoid
 
+  MonCon : forall {X} -> Monoid X -> Applicative \_ -> X
+  pure         (MonCon M) _ = M .e
+  _<*>_        (MonCon M)   = M .op
+  identity     (MonCon M) v = M .lunit v
+  composition  (MonCon M) u v w rewrite M .lunit u | M .assoc u v w = refl
+  homomorphism (MonCon M) f x   rewrite M .runit (M .e) = refl
+  interchange  (MonCon M) u y   rewrite M .runit u | M .lunit u | M .lunit u | M .lunit u | M .lunit u = refl
 
+open MonCon
 ----------------------------------------------------------------------------
 -- ??? 0.9 vector combine                                     (score: ? / 1)
 ----------------------------------------------------------------------------
@@ -205,8 +239,9 @@ MonCon M = record
 
 vcombine : forall {X} -> Monoid X ->
            forall {n} -> Vec X n -> X
-vcombine {X} M = {!!}
+vcombine {X} M = traverse {_} {_} {X}  id
   where open Monoid M
+        open VECTRAV (MonCon M)
 
 
 ---------------------------------------------------------------------------
