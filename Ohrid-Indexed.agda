@@ -99,7 +99,7 @@ freeMonadIx C = record { retIx = ret ; extendIx = graft } where
   graft k (do (s , f)) = do (s , \ p -> graft k (f p))
 
 -- potentially infinite strategies
-
+{-
 data Iterating {I}(C : I => I)(X : I -> Set)(i : I) : Set
 
 record IterIx {I}(C : I => I)(X : I -> Set)(i : I) : Set where
@@ -122,3 +122,4 @@ iterMonadIx C = record { retIx = retHelp ; extendIx = extHelp } where
   force (extHelp k t) with force t
   force (extHelp k t) | ret p = force (k p)
   force (extHelp k t) | do (s , f)  = do (s , \ p -> extHelp k (f p))
+  -}

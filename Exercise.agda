@@ -1,4 +1,4 @@
-{-# OPTIONS --show-implicit #-}
+--{-# OPTIONS --show-implicit #-}
 module Exercise where
 
 open import Ohrid-Prelude
@@ -286,15 +286,29 @@ boxMonadIx : MonadIx Box
 boxMonadIx = record { retIx = tile ; extendIx = boxExtendIx } where
   boxExtendIx : {X Y : Nat * Nat → Set} ->
                 [ X -:> Box Y ] -> [ Box X -:> Box Y ]
-  boxExtendIx k b = {!!}
+  boxExtendIx {X} {Y} k {i} (tile x) = k x
+  boxExtendIx {X} {Y} k {i} (leri wl b wr b₁ x) = leri wl (boxExtendIx k b) wr (boxExtendIx k b₁) x
+  boxExtendIx {X} {Y} k {i} (tobo ht b hb b₁ x) = tobo ht (boxExtendIx k b) hb (boxExtendIx k b₁) x
 
 boxMonadIxLaws : MonadIxLaws boxMonadIx
 boxMonadIxLaws = record
-  { lunit = {!!}
-  ; runit = {!!}
-  ; assoc = {!!}
+  { lunit = λ {P} {Q} f {i} p → refl
+  ; runit = λ f p → extendIxTile (f p)
+  ; assoc = λ f g h p → {!!}
   } where
   open MonadIx boxMonadIx
+  -- forall {P Q} -> [ P -:> F Q ] -> [ F P -:> F Q ]
+
+  extendIxTile : ∀ {X} {wh} → (x : Box wh X) → extendIx (λ x₁ → tile x₁) x == x
+  extendIxTile (tile x) = refl
+  extendIxTile (leri wl x wr x₁ x₂) rewrite (extendIxTile x) | (extendIxTile x₁) = refl
+  extendIxTile (tobo ht x hb x₁ x₂) rewrite (extendIxTile x) | (extendIxTile x₁) = refl
+{-
+  extendIxAssoc :
+      extendIx h (extendIx g y) ==
+      extendIx (λ {i} x → .Exercise.boxExtendIx h (g x)) y
+      -}
+
 
 
 ---------------------------------------------------------------------------
